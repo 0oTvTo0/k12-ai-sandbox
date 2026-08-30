@@ -1,4 +1,5 @@
 // 右侧面板：AI 老师聊天窗（含对话气泡、情绪头像、多轮追问）
+// P3 将加入代码批注联动 + 档案隔离聊天记录
 import { useState, useRef, useEffect } from "react";
 import { askAI } from "../lib/api";
 import { recordAiAsk } from "../lib/storage";
@@ -47,16 +48,15 @@ export default function AITutor({ code, output, errorLine, onFocusLine, onUnlock
   }, [history, loading]);
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-800">
+    <div className="flex flex-col h-full">
       {/* 头部：折叠/展开 */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 px-4 py-3 font-bold text-sm text-grape dark:text-purple-400
-                   hover:bg-purple-50 dark:hover:bg-purple-500/5 transition-colors"
+        className="flex items-center gap-2 px-4 py-3 font-bold text-sm text-accent hover-tint transition-colors"
       >
         <span className="text-lg">🤖</span>
         AI 小码老师
-        <span className="ml-auto text-xs text-slate-400">{expanded ? "收起 ▲" : "展开 ▼"}</span>
+        <span className="ml-auto text-xs text-faint">{expanded ? "收起 ▲" : "展开 ▼"}</span>
       </button>
 
       {expanded && (
@@ -82,16 +82,17 @@ export default function AITutor({ code, output, errorLine, onFocusLine, onUnlock
                 <div
                   className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed animate-pop-in ${
                     m.role === "user"
-                      ? "bg-brand-500 text-white rounded-br-md"
-                      : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-md"
+                      ? "text-white rounded-br-md"
+                      : "glass rounded-bl-md text-main"
                   }`}
+                  style={m.role === "user" ? { background: "var(--btn-primary-bg)" } : undefined}
                 >
                   {m.content}
                 </div>
               </div>
             ))}
             {loading && (
-              <div className="flex gap-2 items-center text-slate-400 text-xs">
+              <div className="flex gap-2 items-center text-faint text-xs">
                 <Mascot emotion="think" size={28} />
                 <span className="animate-pulse">小码老师思考中...</span>
               </div>
@@ -102,21 +103,19 @@ export default function AITutor({ code, output, errorLine, onFocusLine, onUnlock
           {/* 输入框 */}
           <form
             onSubmit={(e) => { e.preventDefault(); if (question.trim()) doAsk("chat", question.trim()); }}
-            className="flex gap-2 px-4 py-3 border-t border-slate-200 dark:border-slate-700"
+            className="flex gap-2 px-4 py-3 border-t border-(--hairline)"
           >
             <input
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="追问小码老师..."
-              className="flex-1 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600
-                         bg-slate-50 dark:bg-slate-700 text-sm text-slate-800 dark:text-slate-200
-                         focus:outline-none focus:ring-2 focus:ring-grape focus:border-transparent"
+              className="flex-1 px-3 py-2 rounded-xl glass text-sm text-main placeholder:text-faint
+                         focus:outline-none focus:ring-2 focus:ring-(--accent)"
             />
             <button
               type="submit"
               disabled={!question.trim() || loading}
-              className="px-4 py-2 rounded-xl bg-grape hover:bg-purple-600 text-white font-bold text-sm
-                         disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="btn btn-primary text-sm disabled:opacity-40"
             >
               发送
             </button>
@@ -131,9 +130,7 @@ function QuickBtn({ label, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-3 py-2 rounded-xl bg-purple-50 dark:bg-purple-500/10 text-sm
-                 text-grape dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20
-                 transition-colors font-medium"
+      className="w-full text-left px-3 py-2 rounded-2xl glass text-sm text-accent hover-tint font-medium"
     >
       {label}
     </button>

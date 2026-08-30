@@ -18,38 +18,201 @@
   --color-brand-600: #4553e8;
   --color-brand-700: #3842cd;
 
-  /* 各功能强调色 */
   --color-sun: #ffb020;      /* 琥珀-挑战/星星 */
   --color-leaf: #22c55e;     /* 翠绿-成功 */
   --color-berry: #f43f5e;    /* 玫红-错误 */
   --color-grape: #a855f7;    /* 葡萄紫-AI */
 }
 
-/* 全局基础 */
-html, body, #root {
-  height: 100%;
+/* ============================================================
+   主题令牌
+   :root = 日间「玻璃晴空」(苹果风)
+   .dark = 暗夜「赛博霓虹」(未来主义)
+   ============================================================ */
+:root {
+  --bg-1: #f2f3f7;
+  --bg-2: #e9edf5;
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-shadow: 0 8px 32px rgba(30, 40, 80, 0.08);
+  --text-1: #1d1d1f;
+  --text-2: #6e6e73;
+  --text-3: #a3a3ad;
+  --accent: #0071e3;          /* 苹果蓝 */
+  --accent-2: #a855f7;        /* 葡萄紫 */
+  --ok: #34c759;
+  --err: #ff3b30;
+  --warn: #ff9500;
+  --line: rgba(28, 34, 60, 0.08);
+  --hairline: rgba(30, 40, 80, 0.06);
+  --btn-primary-bg: linear-gradient(135deg, #0071e3, #5b8df5);
+  --btn-primary-text: #fff;
+  --primary-glow: 0 4px 14px rgba(0, 113, 227, 0.25);
+  --primary-glow-hover: 0 6px 20px rgba(0, 113, 227, 0.32);
 }
+
+.dark {
+  --bg-1: #080b14;
+  --bg-2: #0d1122;
+  --glass-bg: rgba(14, 18, 36, 0.62);
+  --glass-bg-strong: rgba(14, 18, 36, 0.82);
+  --glass-border: rgba(0, 229, 255, 0.22);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 24px rgba(0, 229, 255, 0.08);
+  --text-1: #eaf2ff;
+  --text-2: #8fa3c8;
+  --text-3: #5d6f94;
+  --accent: #00e5ff;          /* 霓虹青 */
+  --accent-2: #b14eff;        /* 电紫 */
+  --ok: #34e2a0;
+  --err: #ff4d6a;
+  --warn: #ffb020;
+  --line: rgba(0, 229, 255, 0.14);
+  --hairline: rgba(0, 229, 255, 0.08);
+  --btn-primary-bg: linear-gradient(135deg, #00e5ff, #b14eff);
+  --btn-primary-text: #08111f;
+  --primary-glow: 0 0 18px rgba(0, 229, 255, 0.18);
+  --primary-glow-hover: 0 0 26px rgba(0, 229, 255, 0.3);
+}
+
+/* ========== 页面背景 ========== */
+html, body, #root { height: 100%; }
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  color: var(--text-1);
+  background:
+    radial-gradient(1200px 800px at 10% -10%, rgba(199, 216, 255, 0.4), transparent 60%),
+    radial-gradient(1000px 700px at 110% 20%, rgba(255, 227, 240, 0.35), transparent 55%),
+    radial-gradient(900px 700px at 50% 115%, rgba(216, 255, 239, 0.35), transparent 60%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-2));
+  background-attachment: fixed;
+  transition: background 0.3s ease;
+}
+/* 暗夜背景：霓虹网格 + 光晕（覆盖日间的模糊色斑） */
+.dark body {
+  background:
+    radial-gradient(900px 600px at 50% -20%, rgba(0, 229, 255, 0.1), transparent 60%),
+    radial-gradient(700px 500px at 90% 90%, rgba(177, 78, 255, 0.12), transparent 55%),
+    linear-gradient(180deg, #080b14, #0d1122);
+}
+.dark body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 229, 255, 0.05) 0 1px, transparent 1px 42px),
+    repeating-linear-gradient(90deg, rgba(0, 229, 255, 0.05) 0 1px, transparent 1px 42px);
+}
+#root { position: relative; z-index: 1; }
+
+/* ========== 玻璃卡片（双主题自动适配） ========== */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+}
+.glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: var(--glass-shadow);
 }
 
-/* 可爱的滚动条 */
+/* ========== 文字层级 ========== */
+.text-main { color: var(--text-1); }
+.text-sub { color: var(--text-2); }
+.text-faint { color: var(--text-3); }
+.text-accent { color: var(--accent); }
+
+/* ========== 按钮 ========== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.18s ease, filter 0.18s ease;
+}
+.btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  padding: 0.45rem 1.1rem;
+  box-shadow: var(--primary-glow);
+}
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--primary-glow-hover); }
+.btn-ghost {
+  background: color-mix(in srgb, var(--text-1) 6%, transparent);
+  color: var(--text-2);
+  padding: 0.4rem 1rem;
+}
+.btn-ghost:hover:not(:disabled) { color: var(--text-1); transform: translateY(-1px); }
+.icon-btn {
+  width: 2.4rem; height: 2.4rem;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--text-1) 6%, transparent);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.icon-btn:hover { transform: translateY(-1px) scale(1.04); box-shadow: var(--glass-shadow); }
+
+/* 悬停微着色（列表项） */
+.hover-tint { transition: background 0.15s ease, transform 0.15s ease; }
+.hover-tint:hover { background: color-mix(in srgb, var(--text-1) 8%, transparent); }
+
+/* ========== 标签页 ========== */
+.tab-btn {
+  flex: 1;
+  padding: 0.5rem 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-2);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.tab-btn:hover { color: var(--text-1); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* ========== 徽章/标签 chip ========== */
+.chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.65rem; font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+/* ========== 可爱的滚动条 ========== */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #a1bcff, #7b97fc);
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
-}
-.dark ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #4b5563, #6b7280);
-  background-clip: padding-box;
-  border: 2px solid transparent;
+  opacity: 0.7;
 }
 
-/* ---------- 动效 ---------- */
+/* ========== 动效 ========== */
 @keyframes pop-in {
   0% { transform: scale(0.6); opacity: 0; }
   70% { transform: scale(1.05); }
@@ -80,6 +243,30 @@ body {
   20%, 60% { transform: translateX(-5px); }
   40%, 80% { transform: translateX(5px); }
 }
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+@keyframes fade-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes glow-ring {
+  0%, 100% { box-shadow: 0 0 10px rgba(0, 229, 255, 0.15); }
+  50% { box-shadow: 0 0 26px rgba(0, 229, 255, 0.4); }
+}
+@keyframes lightbar {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes flip-3d {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(180deg); }
+}
 
 .animate-pop-in { animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .animate-float { animation: float-y 3s ease-in-out infinite; }
@@ -87,6 +274,9 @@ body {
 .animate-bounce-soft { animation: bounce-soft 0.6s ease-in-out; }
 .animate-slide-up { animation: slide-up 0.3s ease-out both; }
 .animate-shake { animation: shake-x 0.4s ease-in-out; }
+.animate-breathe { animation: breathe 3s ease-in-out infinite; }
+.animate-fade-up { animation: fade-up 0.3s ease-out both; }
+.animate-glow { animation: glow-ring 2.4s ease-in-out infinite; }
 .mascot-eyes { animation: blink-eyes 4.5s ease-in-out infinite; transform-origin: center; }
 
 /* Monaco 错误行高亮背景 */

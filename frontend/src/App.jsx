@@ -8,8 +8,10 @@ import ConsolePanel from "./components/ConsolePanel";
 import AITutor from "./components/AITutor";
 import Achievements from "./components/Achievements";
 import Celebration from "./components/Celebration";
+import ProfileGate from "./components/ProfileGate";
 import { getEncouragement } from "./lib/api";
 import {
+  migrateLegacy, getProfiles, getActiveProfile,
   saveTheme, loadTheme, saveFontSize, loadFontSize,
   saveDraft, loadDraft, getStats, recordRun, getUnlockedBadges,
   addHistory,
@@ -20,15 +22,37 @@ const POLL_INTERVAL = 400;
 const POLL_MAX = 120; // 48 秒
 const BACKEND = "http://localhost:8000";
 
-const STARTER_CODE = `# 👋 欢迎来到小码星球！
-# 在左边选一个示例，或直接开始写代码吧～
+// 新档案首次打开的欢迎代码（FR-02）
+const HELLO_WORLD = `# 🌟 欢迎来到小码星球！
+# 点击上方 ▶ 运行，看看会发生什么
 
-print("你好，小码星球！")
-print("今天我要学会 Python ⭐")
+print("Hello, World!")
+print("你好，小小程序员！")
 `;
 
 export default function App() {
-  // ---- 主题 & 字体 ----
+  // ---- 学生档案（多用户隔离，FR-03） ----
+  const [activeProfile, setActiveProfile] = useState(() => getActiveProfile());
+  const [gate, setGate] = useState(() => {
+    const hasActive = !!getActiveProfile();
+    return {
+      open: !hasActive,
+      mode: getProfiles().length ? "switch" : "welcome",
+    };
+  });
+
+  useEffect(() => {
+    migrateLegacy(); // 幂等：清理 v2.0 旧数据（用户已确认清零）
+  }, []);
+
+  const handleProfileDone = useCallback((profile, isNew) => {
+    setActiveProfile(profile);
+    setTheme(loadTheme());        // 每个档案独立主题
+    setFontSize(loadFontSize());  // 每个档案独立字号
+    setGate({ open: false, mode: "switch" });
+  }, []);
+
+  // ---- 主题 & 字体（每档案独立） ----
   const [theme, setTheme] = useState(() => loadTheme());
   const [fontSize, setFontSize] = useState(() => loadFontSize());
 
@@ -80,7 +104,7 @@ export default function App() {
         const { data: d } = await axios.get(`${BACKEND}/result/${state.jobId}`);
         if (d.status === "done") { res = d.result; break; }
         await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-        }
+      }
       if (!res) {
         // 被取消或超时
         res = state.cancelled
@@ -116,7 +140,7 @@ export default function App() {
   }, []);
 
   // ---- 代码编辑器 ----
-  const [code, setCode] = useState(() => loadDraft() || STARTER_CODE);
+  const [code, setCode] = useState(() => loadDraft() || HELLO_WORLD);
   const [errorLine, setErrorLine] = useState(null);
   const codeRef = useRef(code);
   codeRef.current = code;
@@ -145,99 +169,109 @@ export default function App() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationMsg, setCelebrationMsg] = useState("");
 
+  // ---- 档案门未完成：只显示欢迎/建档 ----
+  if (gate.open || !activeProfile) {
+    return (
+      <ProfileGate
+        mode={gate.mode}
+        onDone={handleProfileDone}
+        onClose={() => setGate({ open: false, mode: "switch" })}
+      />
+    );
+  }
+
   // ---- 衍生值 ----
   const dark = theme === "dark";
   const stats = getStats();
   const badgeCount = getUnlockedBadges().length;
   const mascotEmotion = running ? "think" : result?.status === "success" ? "happy" : "idle";
 
+  // key=档案id：切换档案时整个工作区重挂载，重新读取该档案的草稿/历史/主题
   return (
-    <div className={`h-screen flex flex-col ${dark ? "dark" : ""}`}>
-      <div className="h-screen flex flex-col bg-gradient-to-br from-sky-50 via-indigo-50 to-purple-50
-                      dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 text-slate-800 dark:text-slate-200">
+    <div key={activeProfile.id} className="h-screen flex flex-col">
+      <Header
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+        streak={stats.streak}
+        badgeCount={badgeCount}
+        onOpenAchievements={handleOpenAchievements}
+        onOpenProfiles={() => setGate({ open: true, mode: "switch" })}
+        onNewProfile={() => setGate({ open: true, mode: "create" })}
+        profile={activeProfile}
+      />
 
-        <Header
-          theme={theme}
-          onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-          streak={stats.streak}
-          badgeCount={badgeCount}
-          onOpenAchievements={handleOpenAchievements}
-          mascotEmotion={mascotEmotion}
+      {/* 三栏 */}
+      <div className="flex flex-1 min-h-0 px-2.5 pb-2.5 gap-2.5">
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed((c) => !c)}
+          onLoadCode={loadCode}
         />
 
-        {/* 三栏 */}
-        <div className="flex flex-1 min-h-0">
-          <Sidebar
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed((c) => !c)}
-            onLoadCode={loadCode}
+        {/* 编辑区 */}
+        <div className="flex-1 flex flex-col min-w-0 glass overflow-hidden">
+          <Toolbar
+            onRun={() => handleRun("run")}
+            onTrace={() => handleRun("trace")}
+            onStop={handleStop}
+            onSave={() => addHistory(codeRef.current, "saved")}
+            onAskAI={handleAskAI}
+            running={running}
+            fontSize={fontSize}
+            onFontChange={(d) => setFontSize((s) => Math.max(10, Math.min(26, s + d)))}
+            canStop={running}
+            stdin={stdinData}
+            onStdinChange={setStdinData}
           />
 
-          {/* 编辑区 */}
-          <div className="flex-1 flex flex-col min-w-0 border-r border-indigo-100 dark:border-slate-700">
-            <Toolbar
-              onRun={() => handleRun("run")}
-              onTrace={() => handleRun("trace")}
-              onStop={handleStop}
-              onSave={() => addHistory(codeRef.current, "saved")}
-              onAskAI={handleAskAI}
-              running={running}
-              fontSize={fontSize}
-              onFontChange={(d) => setFontSize((s) => Math.max(10, Math.min(26, s + d)))}
-              canStop={running}
-              stdin={stdinData}
-              onStdinChange={setStdinData}
-            />
-
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className="flex-[3] min-h-0">
-                <CodeEditor
-                  code={code}
-                  onChange={setCode}
-                  dark={dark}
-                  fontSize={fontSize}
-                  errorLine={errorLine}
-                />
-              </div>
-              <div className="flex-[2] min-h-0 border-t border-indigo-100 dark:border-slate-700">
-                <ConsolePanel result={result} running={running} />
-              </div>
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-[3] min-h-0">
+              <CodeEditor
+                code={code}
+                onChange={setCode}
+                dark={dark}
+                fontSize={fontSize}
+                errorLine={errorLine}
+              />
+            </div>
+            <div className="flex-[2] min-h-0 border-t border-(--hairline)">
+              <ConsolePanel result={result} running={running} />
             </div>
           </div>
-
-          {/* AI 导师 */}
-          {aiOpen && (
-            <div className="w-80 shrink-0 border-l border-indigo-100 dark:border-slate-700 flex flex-col">
-              <button
-                onClick={() => setAiOpen(false)}
-                className="self-end m-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm px-2"
-              >
-                关闭 ✕
-              </button>
-              <div className="flex-1 min-h-0">
-                <AITutor
-                  code={code}
-                  output={result ? (result.stdout || result.stderr || "") : ""}
-                  errorLine={errorLine}
-                  onFocusLine={handleAIErrorLine}
-                  onUnlockBadges={handleUnlockBadges}
-                />
-              </div>
-            </div>
-          )}
         </div>
 
-        <Achievements
-          open={showAchievements}
-          onClose={() => setShowAchievements(false)}
-          newlyUnlocked={newBadges}
-        />
-        <Celebration
-          show={showCelebration}
-          message={celebrationMsg}
-          onDone={() => setShowCelebration(false)}
-        />
+        {/* AI 导师 */}
+        {aiOpen && (
+          <div className="w-80 shrink-0 glass flex flex-col overflow-hidden animate-slide-up">
+            <button
+              onClick={() => setAiOpen(false)}
+              className="self-end m-2 text-faint hover:text-main text-sm px-2"
+            >
+              关闭 ✕
+            </button>
+            <div className="flex-1 min-h-0">
+              <AITutor
+                code={code}
+                output={result ? (result.stdout || result.stderr || "") : ""}
+                errorLine={errorLine}
+                onFocusLine={handleAIErrorLine}
+                onUnlockBadges={handleUnlockBadges}
+              />
+            </div>
+          </div>
+        )}
       </div>
+
+      <Achievements
+        open={showAchievements}
+        onClose={() => setShowAchievements(false)}
+        newlyUnlocked={newBadges}
+      />
+      <Celebration
+        show={showCelebration}
+        message={celebrationMsg}
+        onDone={() => setShowCelebration(false)}
+      />
     </div>
   );
 }

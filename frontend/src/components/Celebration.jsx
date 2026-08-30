@@ -50,7 +50,8 @@ export default function Celebration({ show, message, onDone }) {
 
   return (
     <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-pop-in pointer-events-none">
-      <div className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-400 to-sky-400 text-white font-extrabold text-lg shadow-2xl shadow-emerald-200/50 text-center">
+      <div className="glass-strong px-6 py-3 font-extrabold text-lg text-center"
+           style={{ background: "linear-gradient(135deg, var(--ok), var(--accent))", color: "#fff" }}>
         🎉 {message}
       </div>
     </div>
