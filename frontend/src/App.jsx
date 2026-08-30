@@ -212,7 +212,11 @@ export default function App() {
       setResult(res);
       if (res.error_line) setErrorLine(res.error_line);
       const usedTrace = mode === "trace";
-      const newBadges = recordRun(res.status, { usedTrace });
+      // 知错就改：上一次运行报错（或有 error 级批注），本次成功
+      const hadErrorBefore =
+        result?.status === "error" || result?.status === "timeout" ||
+        annotations.some((a) => a.severity === "error");
+      const newBadges = recordRun(res.status, { usedTrace, hadErrorBefore });
       if (newBadges.length) setNewBadges((b) => [...b, ...newBadges]);
       if (res.status === "success") {
         setCelebrationMsg(await getEncouragement());
@@ -224,7 +228,7 @@ export default function App() {
     }
     setRunning(false);
     runningRef.current = null;
-  }, [running, challenge, progress]);
+    }, [running, challenge, progress, result, annotations]);
 
   // 停止：发取消请求 + 本地标记，中止轮询
   const handleStop = useCallback(async () => {
@@ -251,6 +255,34 @@ export default function App() {
   const handleAIErrorLine = useCallback((line) => {
     if (line != null) setErrorLine(line);
   }, []);
+
+  // ---- AI 批注联动（FR-07） ----
+  const [annotations, setAnnotations] = useState([]);
+  const [activeAnnotationId, setActiveAnnotationId] = useState(null);
+  const [annotationFocus, setAnnotationFocus] = useState(null); // {line, n}
+
+  const handleAnnotationsChange = useCallback((list) => {
+    setAnnotations(list || []);
+    setActiveAnnotationId(null);
+  }, []);
+
+  const handleFocusAnnotation = useCallback((id) => {
+    setActiveAnnotationId(id);
+    const ann = annotations.find((a) => a.id === id);
+    if (ann) setAnnotationFocus({ line: ann.start_line, n: Date.now() });
+  }, [annotations]);
+
+  const handleAcceptAnnotation = useCallback((id) => {
+    setAnnotations((list) => list.filter((a) => a.id !== id));
+  }, []);
+
+  const handleAcceptAll = useCallback(() => setAnnotations([]), []);
+
+  // 点击编辑器行号区角标 → 高亮对应批注（双向联动）
+  const handleGlyphClick = useCallback((line) => {
+    const ann = annotations.find((a) => line >= a.start_line && line <= (a.end_line || a.start_line));
+    if (ann) handleFocusAnnotation(ann.id);
+  }, [annotations, handleFocusAnnotation]);
 
   // ---- 侧边栏 ----
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -345,6 +377,10 @@ export default function App() {
                 onTrace={() => handleRun("trace")}
                 statusText={running ? "运行中…" : challenge ? "挑战模式" : "就绪"}
                 skin={skin}
+                annotations={annotations}
+                activeAnnotationId={activeAnnotationId}
+                annotationFocus={annotationFocus}
+                onGlyphClick={handleGlyphClick}
               />
             </div>
             <div className="flex-[2] min-h-0 border-t border-(--hairline)">
@@ -377,6 +413,12 @@ export default function App() {
                 errorLine={errorLine}
                 onFocusLine={handleAIErrorLine}
                 onUnlockBadges={handleUnlockBadges}
+                annotations={annotations}
+                onAnnotationsChange={handleAnnotationsChange}
+                activeAnnotationId={activeAnnotationId}
+                onFocusAnnotation={handleFocusAnnotation}
+                onAcceptAnnotation={handleAcceptAnnotation}
+                onAcceptAll={handleAcceptAll}
               />
             </div>
           </div>

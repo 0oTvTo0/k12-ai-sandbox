@@ -33,11 +33,21 @@ SYSTEM_PROMPT = """你叫"小码老师"，是一位教小学生和初中生学 P
 
 【输出格式 - 严格遵守】
 你必须只返回一个 JSON 对象，不要有任何多余文字，格式如下：
-{"reply": "要说的话（中文，活泼，带emoji）", "emotion": "happy", "error_line": null}
+{"reply": "要说的话（中文，活泼，带emoji）", "emotion": "happy", "error_line": null, "annotations": []}
 
 - reply：你对学生说的话。
 - emotion：只能是 "happy"(开心) / "think"(思考) / "encourage"(鼓励) / "celebrate"(庆祝) 之一。
 - error_line：如果代码有错，填出错的行号（整数）；没有错误就填 null。
+
+【代码批注 - 学生求助或报错分析时使用】
+如果代码确实有问题，除了文字解释，还可以在代码上做批注（像老师在纸上圈画）：
+- annotations 数组，最多 3 条，格式：
+  [{"start_line": 2, "end_line": 3, "text": "这里出问题了：除法里不能有 0。改成先判断 b 是不是 0", "severity": "error"}]
+- start_line / end_line：代码行号（从 1 开始）。没把握时就只标一行（start_line 和 end_line 相同）。
+- severity 只能是 "error"(会报错) / "warn"(能跑但不推荐) / "tip"(小优化)。
+- text 用孩子能懂的话说明问题，并指出修改方向；不要直接给出完整答案代码。
+- 没有问题或没把握时，annotations 填空数组 []。
+- 注意：学生代码带行号时，行号仅供参考定位，不要写进批注文字里。
 """
 
 # 不同求助类型的引导语（拼进 user message，帮模型对齐场景）
@@ -49,15 +59,22 @@ _KIND_HINTS = {
 }
 
 
+def _with_line_numbers(code: str) -> str:
+    """把代码加上行号，方便模型准确定位批注位置（FR-07 行号注入）。"""
+    lines = code.splitlines()
+    width = len(str(len(lines)))
+    return "\n".join(f"{i + 1:>{width}} | {ln}" for i, ln in enumerate(lines))
+
+
 def _build_messages(req) -> list[dict]:
-    """组装发给模型的消息列表：system + 场景提示 + 代码/报错 + 历史 + 本次问题。"""
+    """组装发给模型的消息列表：system + 场景提示 + 带行号代码/报错 + 历史 + 本次问题。"""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     hint = _KIND_HINTS.get(req.kind, _KIND_HINTS["help"])
     context_parts = [f"【场景】{hint}"]
 
     if req.code.strip():
-        context_parts.append(f"【学生的代码】\n```python\n{req.code}\n```")
+        context_parts.append(f"【学生的代码（行号已标注，批注请使用真实行号）】\n```python\n{_with_line_numbers(req.code)}\n```")
     if req.output.strip():
         context_parts.append(f"【运行结果 / 报错信息】\n{req.output}")
 
@@ -79,7 +96,7 @@ def _build_messages(req) -> list[dict]:
 
 
 def _parse_ai_json(text: str) -> dict:
-    """尽力把模型输出解析成 {reply, emotion, error_line}；失败则降级为纯文本。"""
+    """尽力把模型输出解析成 {reply, emotion, error_line, annotations}；失败则降级为纯文本。"""
     cleaned = text.strip()
     # 去掉可能的 markdown 代码围栏
     cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.MULTILINE).strip()
@@ -99,10 +116,38 @@ def _parse_ai_json(text: str) -> dict:
             emotion = "happy"
         error_line = data.get("error_line")
         error_line = int(error_line) if isinstance(error_line, (int, float)) else None
-        return {"reply": reply, "emotion": emotion, "error_line": error_line}
+
+        # 批注解析（容忍缺失/格式错误，最多 3 条）
+        annotations = []
+        raw_list = data.get("annotations")
+        if isinstance(raw_list, list):
+            for a in raw_list[:3]:
+                try:
+                    start = int(a.get("start_line", 0))
+                    if start < 1:
+                        continue
+                    end = int(a.get("end_line", start))
+                    if end < start:
+                        end = start
+                    severity = a.get("severity", "error")
+                    if severity not in ("error", "warn", "tip"):
+                        severity = "error"
+                    text = str(a.get("text", "")).strip()
+                    if text:
+                        annotations.append({
+                            "id": f"an{len(annotations) + 1}",
+                            "start_line": start,
+                            "end_line": end,
+                            "text": text[:200],
+                            "severity": severity,
+                        })
+                except (TypeError, ValueError):
+                    continue
+
+        return {"reply": reply, "emotion": emotion, "error_line": error_line, "annotations": annotations}
     except (json.JSONDecodeError, ValueError, TypeError):
         # 降级：整段当成回复，情绪默认 happy
-        return {"reply": text.strip(), "emotion": "happy", "error_line": None}
+        return {"reply": text.strip(), "emotion": "happy", "error_line": None, "annotations": []}
 
 
 async def ask_ai(req) -> dict:
@@ -129,7 +174,8 @@ async def ask_ai(req) -> dict:
     url = f"{config.DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions"
 
     try:
-        async with httpx.AsyncClient(timeout=config.AI_TIMEOUT_SECONDS) as client:
+        # trust_env=False：忽略系统代理（本机 7897 代理不通 DeepSeek，且会吞掉连接错误）
+        async with httpx.AsyncClient(timeout=config.AI_TIMEOUT_SECONDS, trust_env=False) as client:
             resp = await client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
             data = resp.json()

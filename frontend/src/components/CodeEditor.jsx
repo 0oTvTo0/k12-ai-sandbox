@@ -18,12 +18,15 @@ export const SNIPPETS = [
 ];
 
 const CodeEditor = forwardRef(function CodeEditor(
-  { code, onChange, dark, fontSize, errorLine, onRun, onTrace, statusText = "就绪", skin = null },
+  { code, onChange, dark, fontSize, errorLine, onRun, onTrace, statusText = "就绪", skin = null,
+    annotations = [], activeAnnotationId = null, annotationFocus = null, onGlyphClick },
   ref
 ) {
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const decorationsRef = useRef([]);
+  const annDecorationsRef = useRef([]);
+  const flashDecorationsRef = useRef([]);
   const [pos, setPos] = useState({ line: 1, column: 1 });
 
   // 对外暴露：插入片段 / 聚焦（供 Toolbar 🧩 菜单调用）
@@ -94,6 +97,13 @@ const CodeEditor = forwardRef(function CodeEditor(
       );
     });
 
+    // 批注角标点击 → 通知外部（批注栏联动）
+    editor.onMouseDown((e) => {
+      if (e.target?.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN && onGlyphClick) {
+        onGlyphClick(e.target.position.lineNumber);
+      }
+    });
+
     // 中文代码片段补全
     monaco.languages.registerCompletionItemProvider("python", {
       triggerCharacters: [" ", "f", "i", "w", "d", "p", "l"],
@@ -152,6 +162,57 @@ const CodeEditor = forwardRef(function CodeEditor(
       decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
     }
   }, [errorLine]);
+
+  // 批注装饰：半透明罩色 + 行号区编号角标（error红/warn橙/tip蓝）
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    if (annotations.length) {
+      const decos = [];
+      annotations.forEach((a, i) => {
+        decos.push({
+          range: new monaco.Range(a.start_line, 1, a.end_line || a.start_line, 1),
+          options: {
+            isWholeLine: true,
+            glyphMarginClassName: `annotation-glyph annotation-glyph-${a.severity}`,
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        });
+        // 罩色用 overlay 方式：半透明整行背景
+        decos.push({
+          range: new monaco.Range(a.start_line, 1, a.end_line || a.start_line, 1),
+          options: {
+            isWholeLine: true,
+            className: "annotation-tint-" + a.severity,
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        });
+      });
+      annDecorationsRef.current = editor.deltaDecorations(annDecorationsRef.current, decos);
+    } else {
+      annDecorationsRef.current = editor.deltaDecorations(annDecorationsRef.current, []);
+    }
+  }, [annotations]);
+
+  // 批注聚焦：滚动到行 + 短暂闪烁高亮
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco || !annotationFocus) return;
+    editor.revealLineInCenter(annotationFocus);
+    flashDecorationsRef.current = editor.deltaDecorations(flashDecorationsRef.current, [
+      {
+        range: new monaco.Range(annotationFocus, 1, annotationFocus, 1),
+        options: { isWholeLine: true, className: "annotation-flash" },
+      },
+    ]);
+    const t = setTimeout(() => {
+      flashDecorationsRef.current = editor.deltaDecorations(flashDecorationsRef.current, []);
+    }, 1600);
+    return () => clearTimeout(t);
+  }, [annotationFocus]);
 
   // 主题解析：奖励皮肤优先（均为深色）；无皮肤时跟随亮/暗主题
   const editorTheme = skin === "glass-night" ? "glass-night"

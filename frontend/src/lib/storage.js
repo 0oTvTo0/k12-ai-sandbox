@@ -212,6 +212,7 @@ export const BADGE_DEFS = [
   { id: "curious", icon: "🤖", name: "好问宝宝", desc: "向 AI 老师提问 3 次", test: (s) => s.aiAsks >= 3 },
   { id: "hardwork", icon: "📚", name: "勤奋练习", desc: "累计运行 20 次", test: (s) => s.runs >= 20 },
   { id: "challenger", icon: "🎯", name: "挑战达人", desc: "完成 3 个挑战", test: (s) => getDoneChallenges().length >= 3 },
+  { id: "bug_fixer", icon: "🩹", name: "知错就改", desc: "报错后成功改正一次", test: (s) => s.errorsFixed >= 1 },
   // ---- 打怪通关徽章（挑战奖励，按通关情况判定） ----
   { id: "slime_hunter", icon: "🥚", name: "史莱姆猎手", desc: "通关第 1 关·新手村", test: () => TIER_IDS(1).every((id) => getDoneChallenges().includes(id)) },
   { id: "goblin_slayer", icon: "👺", name: "哥布林克星", desc: "通关第 2 关·迷雾森林", test: () => TIER_IDS(2).every((id) => getDoneChallenges().includes(id)) },

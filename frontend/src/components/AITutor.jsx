@@ -1,16 +1,25 @@
-// 右侧面板：AI 老师聊天窗（含对话气泡、情绪头像、多轮追问）
-// P3 将加入代码批注联动 + 档案隔离聊天记录
+// 右侧面板：AI 老师聊天窗（FR-07 批注联动 + 档案隔离聊天记录）
 import { useState, useRef, useEffect } from "react";
 import { askAI } from "../lib/api";
-import { recordAiAsk } from "../lib/storage";
+import { recordAiAsk, getAIChat, saveAIChat } from "../lib/storage";
 import Mascot from "./Mascot";
+import AnnotationPanel from "./AnnotationPanel";
 
-export default function AITutor({ code, output, errorLine, onFocusLine, onUnlockBadges }) {
-  const [expanded, setExpanded] = useState(false);
+export default function AITutor({
+  code, output, errorLine, onFocusLine, onUnlockBadges,
+  annotations, onAnnotationsChange, activeAnnotationId,
+  onFocusAnnotation, onAcceptAnnotation, onAcceptAll,
+}) {
+  const [expanded, setExpanded] = useState(true);
   const [question, setQuestion] = useState("");
-  const [history, setHistory] = useState([]); // [{role, content, emotion?}]
+  const [history, setHistory] = useState(() => getAIChat()); // 每档案隔离
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
+
+  // 档案隔离：聊天记录持久化（最多 30 条）
+  useEffect(() => {
+    saveAIChat(history);
+  }, [history]);
 
   // 把有意义的上下文整理给模型，但不塞满屏幕
   const msgs = history.map((h) => ({ role: h.role, content: h.content }));
@@ -30,6 +39,10 @@ export default function AITutor({ code, output, errorLine, onFocusLine, onUnlock
       ]);
       if (ai.error_line != null && onFocusLine) {
         onFocusLine(ai.error_line);
+      }
+      // 批注：交给 App 渲染到编辑器（FR-07）
+      if (ai.annotations?.length && onAnnotationsChange) {
+        onAnnotationsChange(ai.annotations);
       }
       const newBadges = recordAiAsk();
       if (newBadges.length && onUnlockBadges) onUnlockBadges(newBadges);
@@ -58,6 +71,18 @@ export default function AITutor({ code, output, errorLine, onFocusLine, onUnlock
         AI 小码老师
         <span className="ml-auto text-xs text-faint">{expanded ? "收起 ▲" : "展开 ▼"}</span>
       </button>
+
+      {/* 批注栏（AI 返回批注时出现） */}
+      {expanded && (
+        <AnnotationPanel
+          annotations={annotations}
+          activeId={activeAnnotationId}
+          onFocus={onFocusAnnotation}
+          onAccept={onAcceptAnnotation}
+          onAcceptAll={onAcceptAll}
+          onClose={() => onAnnotationsChange?.([])}
+        />
+      )}
 
       {expanded && (
         <>

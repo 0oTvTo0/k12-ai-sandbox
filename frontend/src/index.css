@@ -288,3 +288,21 @@ body {
   background: #f43f5e;
   border-radius: 50%;
 }
+
+/* ========== AI 批注装饰（FR-07） ========== */
+.annotation-tint-error { background: rgba(255, 77, 106, 0.16); }
+.annotation-tint-warn { background: rgba(255, 176, 32, 0.15); }
+.annotation-tint-tip { background: rgba(59, 130, 246, 0.13); }
+.annotation-glyph {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  box-shadow: 0 0 6px currentColor;
+}
+.annotation-glyph-error { background: #ff4d6a; color: #ff4d6a; }
+.annotation-glyph-warn { background: #ffb020; color: #ffb020; }
+.annotation-glyph-tip { background: #3b82f6; color: #3b82f6; }
+.annotation-flash {
+  background: rgba(0, 229, 255, 0.22);
+  border-left: 3px solid var(--accent);
+}

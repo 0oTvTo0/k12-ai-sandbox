@@ -49,10 +49,20 @@ class AIHelpRequest(BaseModel):
     kind: str = Field(default="help")   # help=求助 | error=报错分析 | chat=闲聊追问 | improve=优化建议
 
 
+class Annotation(BaseModel):
+    """AI 老师对代码的批注（WPS 审阅式）：行号区间 + 儿童友好文字。"""
+    id: str
+    start_line: int
+    end_line: int = 0
+    text: str
+    severity: str = "error"      # error=会报错 / warn=能跑但不推荐 / tip=小优化
+
+
 class AIHelpResponse(BaseModel):
     reply: str
     emotion: str = "happy"          # AI 老师的表情：happy / think / encourage / celebrate
     error_line: Optional[int] = None    # AI 推断出的问题行（尽力而为）
+    annotations: list[Annotation] = []  # 代码批注（FR-07）
 
 
 # ---------- 挑战 / 游戏化 ----------
