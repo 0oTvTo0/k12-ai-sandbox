@@ -18,7 +18,7 @@ export const SNIPPETS = [
 ];
 
 const CodeEditor = forwardRef(function CodeEditor(
-  { code, onChange, dark, fontSize, errorLine, onRun, onTrace, statusText = "就绪" },
+  { code, onChange, dark, fontSize, errorLine, onRun, onTrace, statusText = "就绪", skin = null },
   ref
 ) {
   const editorRef = useRef(null);
@@ -43,6 +43,38 @@ const CodeEditor = forwardRef(function CodeEditor(
   const handleMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+
+    // 奖励皮肤主题（P2 挑战奖励解锁，覆盖默认暗色）
+    monaco.editor.defineTheme("glass-night", {
+      base: "vs-dark", inherit: true, rules: [],
+      colors: {
+        "editor.background": "#0f1729",
+        "editorLineNumber.foreground": "#5d6f94",
+        "editorLineNumber.activeForeground": "#8fa3c8",
+        "editorCursor.foreground": "#7b97fc",
+        "editor.selectionBackground": "#3b5bdb55",
+        "editorGutter.background": "#0f1729",
+        "editorWidget.background": "#131c33",
+      },
+    });
+    monaco.editor.defineTheme("cyber-wings", {
+      base: "vs-dark", inherit: true, rules: [
+        { token: "keyword", foreground: "00e5ff" },
+        { token: "string", foreground: "ff9d5c" },
+        { token: "number", foreground: "b14eff" },
+        { token: "comment", foreground: "5d6f94", fontStyle: "italic" },
+      ],
+      colors: {
+        "editor.background": "#0a0e1c",
+        "editorLineNumber.foreground": "#3d4d75",
+        "editorLineNumber.activeForeground": "#00e5ff",
+        "editorCursor.foreground": "#00e5ff",
+        "editor.selectionBackground": "#b14eff44",
+        "editorGutter.background": "#0a0e1c",
+        "editorWidget.background": "#0e1428",
+        "editorIndentGuide.activeBackground": "#00e5ff33",
+      },
+    });
 
     // 快捷键：Ctrl+Enter 运行 / Ctrl+Shift+Enter 追踪
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => onRun?.());
@@ -121,6 +153,11 @@ const CodeEditor = forwardRef(function CodeEditor(
     }
   }, [errorLine]);
 
+  // 主题解析：奖励皮肤优先（均为深色）；无皮肤时跟随亮/暗主题
+  const editorTheme = skin === "glass-night" ? "glass-night"
+    : skin === "cyber-wings" ? "cyber-wings"
+    : dark ? "vs-dark" : "vs";
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 min-h-0">
@@ -130,7 +167,7 @@ const CodeEditor = forwardRef(function CodeEditor(
           value={code}
           onChange={(v) => onChange(v ?? "")}
           onMount={handleMount}
-          theme={dark ? "vs-dark" : "vs"}
+          theme={editorTheme}
           options={{
             fontSize,
             fontFamily: '"Fira Code", "JetBrains Mono", Consolas, monospace',

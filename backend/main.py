@@ -12,7 +12,7 @@ import json
 
 import redis
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 import config
@@ -30,7 +30,7 @@ r = redis.Redis(
     socket_connect_timeout=5,
 )
 
-app = FastAPI(title="K12 AI 编程沙盒 API", version="2.0.0")
+app = FastAPI(title="K12 AI 编程沙盒 API", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,12 +99,43 @@ def get_examples():
 
 @app.get("/challenges")
 def get_challenges():
-    return {"challenges": [c.model_dump() for c in gamification.get_challenges()]}
+    return {"challenges": [gamification.public_challenge(c) for c in gamification.get_challenges()]}
+
+
+@app.get("/challenges/tiers")
+def get_tiers():
+    return {"tiers": gamification.get_tiers()}
 
 
 @app.get("/challenges/daily")
 def get_daily():
-    return gamification.get_daily_challenge().model_dump()
+    return gamification.public_challenge(gamification.get_daily_challenge())
+
+
+@app.get("/challenges/{challenge_id}")
+def get_challenge(challenge_id: str):
+    ch = gamification.get_challenge_by_id(challenge_id)
+    if not ch:
+        raise HTTPException(status_code=404, detail="挑战不存在")
+    return gamification.public_challenge(ch)
+
+
+@app.post("/challenges/{challenge_id}/judge")
+def judge_challenge(challenge_id: str, payload: CodeRequest):
+    """提交判题：复用 Redis 队列，worker 按题目规则逐组跑沙箱。"""
+    ch = gamification.get_challenge_by_id(challenge_id)
+    if not ch:
+        raise HTTPException(status_code=404, detail="挑战不存在")
+    job_id = str(uuid.uuid4())
+    job = {
+        "id": job_id,
+        "code": payload.code,
+        "kind": "judge",
+        "challenge_id": challenge_id,
+    }
+    r.lpush(config.JOB_QUEUE, json.dumps(job))
+    r.set(config.STATUS_KEY.format(job_id=job_id), "pending", ex=config.JOB_TTL_SECONDS)
+    return {"job_id": job_id}
 
 
 @app.get("/encouragement")
@@ -133,7 +164,7 @@ def health():
         redis_ok = True
     except Exception:
         redis_ok = False
-    return {"status": "ok", "redis": redis_ok, "version": "2.0.0"}
+    return {"status": "ok", "redis": redis_ok, "version": "3.0.0"}
 
 
 if __name__ == "__main__":

@@ -150,7 +150,7 @@ export function markChallengeDone(id) {
     done.push(id);
     write(pk("done_challenges"), done);
   }
-  return unlockBadges(getStats());
+  return unlockBadges(getStats());  // 返回本次新解锁的徽章（含挑战徽章）
 }
 
 // 挑战进度（每次提交结果，供关卡地图渲染）: { [challengeId]: "passed" | "failed" }
@@ -199,6 +199,9 @@ export function unlockTitle(id) {
 }
 
 // ==================== 成就徽章定义 ====================
+const TIER_IDS = (t) => [`c${t}-1`, `c${t}-2`, `c${t}-3`, `c${t}-4`];
+const ALL_CHALLENGE_IDS = [...TIER_IDS(1), ...TIER_IDS(2), ...TIER_IDS(3), ...TIER_IDS(4), ...TIER_IDS(5)];
+
 export const BADGE_DEFS = [
   { id: "first_run", icon: "🌱", name: "第一步", desc: "运行了第一段代码", test: (s) => s.runs >= 1 },
   { id: "first_ok", icon: "✨", name: "初次成功", desc: "第一次让代码跑通", test: (s) => s.success >= 1 },
@@ -209,6 +212,13 @@ export const BADGE_DEFS = [
   { id: "curious", icon: "🤖", name: "好问宝宝", desc: "向 AI 老师提问 3 次", test: (s) => s.aiAsks >= 3 },
   { id: "hardwork", icon: "📚", name: "勤奋练习", desc: "累计运行 20 次", test: (s) => s.runs >= 20 },
   { id: "challenger", icon: "🎯", name: "挑战达人", desc: "完成 3 个挑战", test: (s) => getDoneChallenges().length >= 3 },
+  // ---- 打怪通关徽章（挑战奖励，按通关情况判定） ----
+  { id: "slime_hunter", icon: "🥚", name: "史莱姆猎手", desc: "通关第 1 关·新手村", test: () => TIER_IDS(1).every((id) => getDoneChallenges().includes(id)) },
+  { id: "goblin_slayer", icon: "👺", name: "哥布林克星", desc: "通关第 2 关·迷雾森林", test: () => TIER_IDS(2).every((id) => getDoneChallenges().includes(id)) },
+  { id: "dragon_tamer", icon: "🐲", name: "喷火征服者", desc: "通关第 3 关·火焰山", test: () => TIER_IDS(3).every((id) => getDoneChallenges().includes(id)) },
+  { id: "sky_king", icon: "😈", name: "天空霸主", desc: "通关第 4 关·天空之城", test: () => TIER_IDS(4).every((id) => getDoneChallenges().includes(id)) },
+  { id: "dragon_king", icon: "🐉", name: "龙之征服者", desc: "通关第 5 关·终焉之塔", test: () => TIER_IDS(5).every((id) => getDoneChallenges().includes(id)) },
+  { id: "legend", icon: "🌟", name: "小码传说", desc: "通关全部 20 个挑战", test: () => ALL_CHALLENGE_IDS.every((id) => getDoneChallenges().includes(id)) },
 ];
 
 export function getUnlockedBadges() {

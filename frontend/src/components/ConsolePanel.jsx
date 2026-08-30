@@ -170,6 +170,25 @@ export default function ConsolePanel({ result, running, code, onLocateError, onA
 
   // ---------- success 输出页 ----------
   const hasTrace = (result?.trace?.length || 0) > 0;
+
+  // 挑战判题通过：通关页（不显示学生输出）
+  if (challengeMode && judgeVerdict?.passed) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 p-4 text-center">
+        <div className="animate-bounce-soft text-5xl">🎉</div>
+        <p className="text-xl font-extrabold text-main">通关成功！</p>
+        <p className="text-sub text-sm">
+          {judgeVerdict.passed_count} / {judgeVerdict.total} 组测试全部通过，耗时 {judgeVerdict.duration_ms}ms
+        </p>
+        <div className="flex gap-2 mt-2">
+          <button className="btn btn-primary text-sm" onClick={() => onAskAI?.()}>
+            🤖 问问小码老师
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex border-b border-(--hairline)">

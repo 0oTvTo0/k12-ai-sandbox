@@ -8,13 +8,18 @@ import ConsolePanel from "./components/ConsolePanel";
 import AITutor from "./components/AITutor";
 import Achievements from "./components/Achievements";
 import Celebration from "./components/Celebration";
+import RewardOverlay from "./components/RewardOverlay";
 import ProfileGate from "./components/ProfileGate";
-import { getEncouragement } from "./lib/api";
+import { getEncouragement, judgeChallenge } from "./lib/api";
 import {
   migrateLegacy, getProfiles, getActiveProfile,
   saveTheme, loadTheme, saveFontSize, loadFontSize,
   saveDraft, loadDraft, getStats, recordRun, getUnlockedBadges,
-  addHistory,
+  addHistory, markChallengeDone, getDoneChallenges,
+  getChallengeProgress, saveChallengeProgress,
+  unlockTitle, unlockSkin, unlockMascotWear,
+  getEquippedSkin, saveEquippedSkin, getEquippedWear, saveEquippedWear,
+  BADGE_DEFS,
 } from "./lib/storage";
 import axios from "axios";
 
@@ -30,25 +35,36 @@ print("Hello, World!")
 print("你好，小小程序员！")
 `;
 
+// 挑战系统元数据（与后端 gamification.py 对齐）
+const TIER_IDS = (t) => [`c${t}-1`, `c${t}-2`, `c${t}-3`, `c${t}-4`];
+const ALL_CHALLENGE_IDS = [1, 2, 3, 4, 5].flatMap(TIER_IDS);
+const TIER_META = {
+  1: { name: "新手村·史莱姆", monster: "👾", badge: "slime_hunter", badgeIcon: "🥚", title: "史莱姆猎手", skin: null, mascot: "cap", mascotName: "小帽子 🧢" },
+  2: { name: "迷雾森林·哥布林", monster: "👺", badge: "goblin_slayer", badgeIcon: "👺", title: "哥布林克星", skin: null, mascot: "glasses", mascotName: "小眼镜 🕶️" },
+  3: { name: "火焰山·喷火龙", monster: "🐲", badge: "dragon_tamer", badgeIcon: "🐲", title: "喷火征服者", skin: "glass-night", mascot: "cape", mascotName: "小披风 🧣" },
+  4: { name: "天空之城·大魔王", monster: "😈", badge: "sky_king", badgeIcon: "😈", title: "天空霸主", skin: null, mascot: "crown", mascotName: "小皇冠 👑" },
+  5: { name: "终焉之塔·远古龙", monster: "🐉", badge: "dragon_king", badgeIcon: "🐉", title: "龙之征服者", skin: "cyber-wings", mascot: "wings", mascotName: "小翅膀 🦋" },
+};
+
 export default function App() {
   // ---- 学生档案（多用户隔离，FR-03） ----
   const [activeProfile, setActiveProfile] = useState(() => getActiveProfile());
   const [gate, setGate] = useState(() => {
     const hasActive = !!getActiveProfile();
-    return {
-      open: !hasActive,
-      mode: getProfiles().length ? "switch" : "welcome",
-    };
+    return { open: !hasActive, mode: getProfiles().length ? "switch" : "welcome" };
   });
 
   useEffect(() => {
     migrateLegacy(); // 幂等：清理 v2.0 旧数据（用户已确认清零）
   }, []);
 
-  const handleProfileDone = useCallback((profile, isNew) => {
+  const handleProfileDone = useCallback((profile) => {
     setActiveProfile(profile);
-    setTheme(loadTheme());        // 每个档案独立主题
-    setFontSize(loadFontSize());  // 每个档案独立字号
+    setTheme(loadTheme());
+    setFontSize(loadFontSize());
+    setProgress(getChallengeProgress());
+    setSkin(getEquippedSkin());
+    setWear(getEquippedWear());
     setGate({ open: false, mode: "switch" });
   }, []);
 
@@ -79,11 +95,94 @@ export default function App() {
     setCode(newCode);
     setResult(null);
     setErrorLine(null);
+    setJudgeVerdict(null);
   }, []);
 
-  // 运行 / 追踪
+  // ---- 挑战模式（P2） ----
+  const [challenge, setChallenge] = useState(null);
+  const [judgeVerdict, setJudgeVerdict] = useState(null);
+  const [progress, setProgress] = useState(() => getChallengeProgress());
+  const [reward, setReward] = useState(null);
+
+  const handleSelectChallenge = useCallback((ch) => {
+    setChallenge(ch);
+    setCode(ch.starter_code);
+    setResult(null);
+    setJudgeVerdict(null);
+    setErrorLine(null);
+  }, []);
+
+  const handleExitChallenge = useCallback(() => {
+    setChallenge(null);
+    setJudgeVerdict(null);
+    setResult(null);
+    setErrorLine(null);
+  }, []);
+
+  // 运行 / 追踪（挑战模式下变为判题）
   const handleRun = useCallback(async (mode = "run") => {
     if (running) return;
+
+    // ---- 挑战判题流程 ----
+    if (challenge) {
+      setRunning(true);
+      setResult({ status: "running" });
+      setJudgeVerdict(null);
+      try {
+        const v = await judgeChallenge(challenge.id, codeRef.current);
+        setJudgeVerdict(v);
+        addHistory(codeRef.current, v.passed ? "success" : "error");
+        if (v.passed) {
+          const newly = markChallengeDone(challenge.id);
+          if (newly.length) setNewBadges((b) => [...b, ...newly]);
+          const next = { ...progress, [challenge.id]: "passed" };
+          saveChallengeProgress(next);
+          setProgress(next);
+
+          // 关卡通关奖励（本关 4 题全过 且 本关此前未完成）
+          const meta = TIER_META[challenge.tier];
+          const tierWasDone = TIER_IDS(challenge.tier).every((id) => progress[id] === "passed");
+          const tierNowDone = TIER_IDS(challenge.tier).every((id) => next[id] === "passed");
+          if (tierNowDone && !tierWasDone && meta) {
+            const items = [{ icon: meta.badgeIcon, label: `徽章「${meta.title}」` }];
+            unlockTitle(meta.title);
+            items.push({ icon: "🏅", label: `称号「${meta.title}」` });
+            if (meta.skin) {
+              unlockSkin(meta.skin);
+              items.push({ icon: "🎨", label: `编辑器皮肤「${meta.skin === "glass-night" ? "玻璃之夜" : "赛博之翼"}」` });
+            }
+            if (meta.mascot) {
+              unlockMascotWear(meta.mascot);
+              items.push({ icon: "🧸", label: `吉祥物${meta.mascotName}` });
+            }
+            const allDone = ALL_CHALLENGE_IDS.every((id) => next[id] === "passed");
+            setReward({
+              tier: challenge.tier,
+              tierName: meta.name,
+              monster: meta.monster,
+              title: meta.title,
+              badgeDef: BADGE_DEFS.find((b) => b.id === meta.badge) || null,
+              items,
+              allDone,
+            });
+          }
+          setResult({ status: "success" });
+          setCelebrationMsg("挑战通关！你太厉害了！🎉");
+          setShowCelebration(true);
+        } else {
+          const next = { ...progress, [challenge.id]: "failed" };
+          saveChallengeProgress(next);
+          setProgress(next);
+          setResult({ status: "error" });
+        }
+      } catch (err) {
+        setResult({ status: "error", stderr: "判题服务连接失败：" + err.message });
+      }
+      setRunning(false);
+      return;
+    }
+
+    // ---- 普通运行 / 追踪 ----
     setRunning(true);
     setResult({ status: "running" });
     setErrorLine(null);
@@ -97,7 +196,6 @@ export default function App() {
       });
       state.jobId = data.job_id;
 
-      // 轮询直到得到结构化结果
       let res;
       for (let i = 0; i < POLL_MAX; i++) {
         if (state.cancelled) break;
@@ -106,7 +204,6 @@ export default function App() {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL));
       }
       if (!res) {
-        // 被取消或超时
         res = state.cancelled
           ? { status: "cancelled", stdout: "", stderr: "⏹ 已停止。" }
           : { status: "timeout", stdout: "", stderr: "⏰ 等待结果超时。" };
@@ -127,7 +224,7 @@ export default function App() {
     }
     setRunning(false);
     runningRef.current = null;
-  }, [running]);
+  }, [running, challenge, progress]);
 
   // 停止：发取消请求 + 本地标记，中止轮询
   const handleStop = useCallback(async () => {
@@ -166,6 +263,10 @@ export default function App() {
     setNewBadges((b) => [...b, ...badges]);
   }, []);
 
+  // ---- 皮肤 / 换装（奖励体系） ----
+  const [skin, setSkin] = useState(() => getEquippedSkin());
+  const [wear, setWear] = useState(() => getEquippedWear());
+
   // ---- 喝彩 ----
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationMsg, setCelebrationMsg] = useState("");
@@ -187,7 +288,6 @@ export default function App() {
   const badgeCount = getUnlockedBadges().length;
   const mascotEmotion = running ? "think" : result?.status === "success" ? "happy" : "idle";
 
-  // key=档案id：切换档案时整个工作区重挂载，重新读取该档案的草稿/历史/主题
   return (
     <div key={activeProfile.id} className="h-screen flex flex-col">
       <Header
@@ -207,6 +307,10 @@ export default function App() {
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((c) => !c)}
           onLoadCode={loadCode}
+          onSelectChallenge={handleSelectChallenge}
+          activeChallengeId={challenge?.id}
+          challengeMode={!!challenge}
+          progress={progress}
         />
 
         {/* 编辑区 */}
@@ -218,13 +322,14 @@ export default function App() {
             onSave={() => addHistory(codeRef.current, "saved")}
             onAskAI={handleAskAI}
             onInsertSnippet={(t) => editorRef.current?.insertSnippet(t)}
+            onExitChallenge={challenge ? handleExitChallenge : undefined}
             running={running}
             fontSize={fontSize}
             onFontChange={(d) => setFontSize((s) => Math.max(10, Math.min(26, s + d)))}
             canStop={running}
             stdin={stdinData}
             onStdinChange={setStdinData}
-            challengeLabel={null}
+            challengeLabel={challenge ? `第${challenge.tier}关 · ${challenge.title}` : null}
           />
 
           <div className="flex-1 flex flex-col min-h-0">
@@ -238,7 +343,8 @@ export default function App() {
                 errorLine={errorLine}
                 onRun={() => handleRun("run")}
                 onTrace={() => handleRun("trace")}
-                statusText={running ? "运行中…" : "就绪"}
+                statusText={running ? "运行中…" : challenge ? "挑战模式" : "就绪"}
+                skin={skin}
               />
             </div>
             <div className="flex-[2] min-h-0 border-t border-(--hairline)">
@@ -248,6 +354,8 @@ export default function App() {
                 code={code}
                 onLocateError={(line) => setErrorLine(line)}
                 onAskAI={handleAskAI}
+                challengeMode={!!challenge}
+                judgeVerdict={judgeVerdict}
               />
             </div>
           </div>
@@ -279,12 +387,17 @@ export default function App() {
         open={showAchievements}
         onClose={() => setShowAchievements(false)}
         newlyUnlocked={newBadges}
+        skin={skin}
+        onEquipSkin={(id) => { saveEquippedSkin(id); setSkin(id); }}
+        wear={wear}
+        onEquipWear={(ids) => { saveEquippedWear(ids); setWear(ids); }}
       />
       <Celebration
         show={showCelebration}
         message={celebrationMsg}
         onDone={() => setShowCelebration(false)}
       />
+      <RewardOverlay reward={reward} onDone={() => setReward(null)} />
     </div>
   );
 }

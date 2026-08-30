@@ -56,10 +56,35 @@ class AIHelpResponse(BaseModel):
 
 
 # ---------- 挑战 / 游戏化 ----------
+class JudgeCase(BaseModel):
+    """判题用例：一组 stdin 输入 + 期望输出包含的子串。"""
+    stdin: str = ""
+    expect_contains: list[str] = []
+
+
 class Challenge(BaseModel):
+    """挑战题（判题字段仅后端可见，绝不下发给前端防止照抄）。"""
     id: str
     title: str
-    difficulty: str                 # ⭐ / ⭐⭐ / ⭐⭐⭐
-    description: str
+    tier: int = 1                    # 关卡 1-5
+    order: int = 1                   # 题序 1-4（4 为 Boss 题）
+    theme: str = ""                  # 关卡主题，如 "新手村·史莱姆"
+    boss: bool = False
+    difficulty: str = ""             # ⭐~⭐⭐⭐
+    description: str = ""
     starter_code: str = ""
     hint: str = ""
+    judge_type: str = "contains"     # exact | contains | cases
+    judge_expected: list[str] = []   # exact/contains 模式用
+    judge_cases: list[JudgeCase] = []  # cases 模式用
+    rewards: dict = {}               # {"badge": "...", "title": "...", "skin": "...", "mascot": "..."}
+
+
+class JudgeVerdict(BaseModel):
+    """判题结果（复用 Redis 队列异步返回）。"""
+    passed: bool
+    total: int = 0
+    passed_count: int = 0
+    detail: list[dict] = []
+    feedback: str = ""
+    duration_ms: int = 0

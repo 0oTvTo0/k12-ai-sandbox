@@ -3,7 +3,7 @@ import { useState } from "react";
 import { SNIPPETS } from "./CodeEditor";
 
 export default function Toolbar({
-  onRun, onTrace, onStop, onSave, onAskAI, onInsertSnippet,
+  onRun, onTrace, onStop, onSave, onAskAI, onInsertSnippet, onExitChallenge,
   running, fontSize, onFontChange,
   canStop, stdin, onStdinChange,
   challengeLabel,
@@ -108,9 +108,20 @@ export default function Toolbar({
 
       {/* 挑战模式标识 */}
       {challengeLabel && (
-        <span className="chip animate-pop-in" title="当前挑战">
-          ⚔️ {challengeLabel}
-        </span>
+        <>
+          <span className="chip animate-pop-in" title="当前挑战">
+            ⚔️ {challengeLabel}
+          </span>
+          {onExitChallenge && (
+            <button
+              onClick={onExitChallenge}
+              className="btn btn-ghost text-xs"
+              title="退出挑战模式"
+            >
+              ✖ 退出
+            </button>
+          )}
+        </>
       )}
 
       <div className="flex-1" />

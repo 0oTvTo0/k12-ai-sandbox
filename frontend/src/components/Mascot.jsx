@@ -1,6 +1,7 @@
 // AI 老师"小码"的卡通形象：纯 SVG 绘制，随 emotion 切换表情。
+// wear: 换装列表 ["cap","glasses","cape","crown","wings"]（挑战奖励解锁）
 // emotion: idle | happy | think | encourage | celebrate
-export default function Mascot({ emotion = "idle", size = 56, className = "" }) {
+export default function Mascot({ emotion = "idle", size = 56, className = "", wear = [] }) {
   // 不同表情下的眼睛与嘴巴
   const eyes = {
     idle: { left: "M32 44 a5 6 0 1 0 0.1 0", right: "M68 44 a5 6 0 1 0 0.1 0", type: "dot" },
@@ -20,6 +21,19 @@ export default function Mascot({ emotion = "idle", size = 56, className = "" }) 
       role="img"
       aria-label="小码老师"
     >
+      {/* 披风（换装） */}
+      {wear.includes("cape") && (
+        <path d="M20 40 Q6 70 14 96 L86 96 Q94 70 80 40 Q64 52 50 52 Q36 52 20 40 Z"
+              fill="#b14eff" opacity="0.85" stroke="#7a2bd4" strokeWidth="2" />
+      )}
+      {/* 翅膀（换装） */}
+      {wear.includes("wings") && (
+        <>
+          <path d="M20 42 Q2 30 6 12 Q22 16 30 34 Z" fill="#00e5ff" opacity="0.9" stroke="#0891b2" strokeWidth="1.5" />
+          <path d="M80 42 Q98 30 94 12 Q78 16 70 34 Z" fill="#00e5ff" opacity="0.9" stroke="#0891b2" strokeWidth="1.5" />
+        </>
+      )}
+
       {/* 天线 + 顶部小灯（庆祝时变色） */}
       <line x1="50" y1="14" x2="50" y2="6" stroke="#8b93b8" strokeWidth="3" strokeLinecap="round" />
       <circle cx="50" cy="5" r="4" fill={emotion === "celebrate" ? "#ffb020" : "#5b73f5"}>
@@ -27,6 +41,15 @@ export default function Mascot({ emotion = "idle", size = 56, className = "" }) 
           <animate attributeName="opacity" values="1;0.3;1" dur="0.6s" repeatCount="indefinite" />
         )}
       </circle>
+
+      {/* 皇冠（换装） */}
+      {wear.includes("crown") && (
+        <path d="M30 20 L36 8 L48 17 L58 6 L72 18 L68 22 L32 22 Z" fill="#ffb020" stroke="#d97706" strokeWidth="1.5" />
+      )}
+      {/* 帽子（换装） */}
+      {wear.includes("cap") && (
+        <path d="M24 20 Q24 4 50 4 Q76 4 76 20 Z" fill="#ff6b9d" stroke="#e04078" strokeWidth="2" />
+      )}
 
       {/* 头部 */}
       <rect x="16" y="16" width="68" height="60" rx="20" fill="#ffffff" stroke="#5b73f5" strokeWidth="3.5" />
@@ -70,6 +93,15 @@ export default function Mascot({ emotion = "idle", size = 56, className = "" }) 
           </>
         )}
       </g>
+
+      {/* 眼镜（换装） */}
+      {wear.includes("glasses") && (
+        <>
+          <circle cx="34" cy="44" r="8.5" fill="none" stroke="#2b3350" strokeWidth="2.5" />
+          <circle cx="66" cy="44" r="8.5" fill="none" stroke="#2b3350" strokeWidth="2.5" />
+          <line x1="42.5" y1="44" x2="57.5" y2="44" stroke="#2b3350" strokeWidth="2.5" />
+        </>
+      )}
 
       {/* 嘴巴 */}
       {emotion === "think" ? (

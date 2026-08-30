@@ -20,8 +20,9 @@ import threading
 import psutil
 
 import config
+import gamification
 import security
-from models import ExecResult, TraceEvent
+from models import ExecResult, TraceEvent, JudgeVerdict
 
 RUNNER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sandbox_runner.py")
 
@@ -240,6 +241,71 @@ def execute_code(code: str, stdin_data: str, mode: str, job_id=None) -> ExecResu
         )
 
 
+def execute_judge(code: str, challenge) -> JudgeVerdict:
+    """判题执行：按挑战题的判定规则逐组跑沙箱，汇总 verdict。
+
+    exact    —— stdout 去首尾空白后全等
+    contains —— stdout 包含全部期望子串
+    cases    —— 多组 (stdin, expect_contains)，每组独立跑一次沙箱
+    """
+    import time as _t
+
+    if challenge.judge_type == "cases":
+        cases = [(c.stdin, c.expect_contains) for c in challenge.judge_cases]
+    else:
+        cases = [("", challenge.judge_expected)]
+
+    started = _t.time()
+    total = len(cases)
+    passed_count = 0
+    details = []
+    first_fail = None  # {"index", "got", "expects", "status"}
+
+    for i, (stdin_data, expects) in enumerate(cases):
+        r = execute_code(code, stdin_data, "run")
+        got = (r.stdout if r.status == "success" else r.stderr or "").strip()
+        ok = r.status == "success"
+        if ok:
+            for exp in expects:
+                if exp not in got:
+                    ok = False
+                    break
+        details.append({
+            "index": i + 1,
+            "stdin": stdin_data,
+            "got": got[:200],
+            "expect": expects,
+            "ok": ok,
+            "exec_status": r.status,
+        })
+        if ok:
+            passed_count += 1
+        elif first_fail is None:
+            first_fail = {"index": i + 1, "got": got, "expects": expects, "status": r.status}
+
+    # 儿童友好的反馈（不透露完整预期，只点出少了什么）
+    feedback = ""
+    if first_fail:
+        if first_fail["status"] == "timeout":
+            feedback = "代码跑超时了，检查一下有没有写死循环？"
+        elif first_fail["status"] == "blocked":
+            feedback = "代码使用了危险操作，被安全卫士拦截了！"
+        elif first_fail["status"] == "error":
+            feedback = f"程序报错啦：{first_fail['got'][:60]}"
+        else:
+            missing = [e for e in first_fail["expects"] if e not in first_fail["got"]]
+            feedback = f"第 {first_fail['index']} 组测试没过，输出里少了 {missing[0]!r} 这样的内容。"
+
+    return JudgeVerdict(
+        passed=(passed_count == total and total > 0),
+        total=total,
+        passed_count=passed_count,
+        detail=details,
+        feedback=feedback,
+        duration_ms=int((_t.time() - started) * 1000),
+    )
+
+
 def main():
     r = get_redis()
     # 启动"停止按钮"监听线程
@@ -262,6 +328,24 @@ def main():
             job = json.loads(job_data)
             job_id = job["id"]
             code = job.get("code", "")
+            kind = job.get("kind", "run")
+
+            # ---- 判题任务：按挑战题规则逐组跑沙箱 ----
+            if kind == "judge":
+                challenge = gamification.get_challenge_by_id(job.get("challenge_id", ""))
+                print(f"[judge] {job_id} challenge={job.get('challenge_id', '')}", flush=True)
+                try:
+                    verdict = execute_judge(code, challenge) if challenge else JudgeVerdict(
+                        passed=False, feedback="找不到这道挑战题，可能被管理员收走啦。")
+                    payload = verdict.model_dump_json()
+                except Exception as e:  # 判题器自己不能崩
+                    verdict = JudgeVerdict(passed=False, feedback=f"判题器出错了：{e}")
+                    payload = verdict.model_dump_json()
+                r.set(config.RESULT_KEY.format(job_id=job_id), payload, ex=config.JOB_TTL_SECONDS)
+                r.set(config.STATUS_KEY.format(job_id=job_id), "done", ex=config.JOB_TTL_SECONDS)
+                print(f"[done] {job_id} -> judge passed={verdict.passed}", flush=True)
+                continue
+
             stdin_data = job.get("stdin", "")
             mode = job.get("mode", "run")
 

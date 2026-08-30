@@ -48,6 +48,22 @@ export async function getDailyChallenge() {
   return data;
 }
 
+export async function getChallenge(id) {
+  const { data } = await http.get(`/challenges/${id}`);
+  return data;
+}
+
+export async function getTiers() {
+  const { data } = await http.get("/challenges/tiers");
+  return data.tiers;
+}
+
+/** 提交判题并轮询到 JudgeVerdict（复用 pending/done 协议） */
+export async function judgeChallenge(id, code) {
+  const { data } = await http.post(`/challenges/${id}/judge`, { code });
+  return pollResult(data.job_id);
+}
+
 export async function getEncouragement() {
   const { data } = await http.get("/encouragement");
   return data.message;
