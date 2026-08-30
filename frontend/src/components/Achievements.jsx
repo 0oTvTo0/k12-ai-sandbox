@@ -85,21 +85,22 @@ export default function Achievements({ open, onClose, newlyUnlocked, skin, onEqu
             const owned = unlocked.includes(def.id);
             const isNew = def.id === animateId;
             return (
-              <div
-                key={def.id}
-                className={`flex flex-col items-center gap-1 p-2.5 rounded-2xl text-center transition-all ${
-                  owned ? "glass" : "opacity-40 grayscale glass"
-                } ${isNew ? "ring-2 ring-(--warn) animate-wiggle" : ""}`}
-              >
-                <span className={`text-2xl ${isNew ? "animate-bounce-soft" : ""}`}>
-                  {def.icon}
-                </span>
-                <span className="text-[10px] font-bold text-main leading-tight">
-                  {def.name}
-                </span>
-                <span className="text-[8px] text-sub leading-tight">
-                  {def.desc}
-                </span>
+              <div key={def.id} className={`badge-3d ${owned ? "" : "grayscale"}`}>
+                <div
+                  className={`flex flex-col items-center gap-1 p-2.5 rounded-2xl text-center transition-all badge-face ${
+                    owned ? "glass" : "opacity-40 glass"
+                  } ${isNew ? "ring-2 ring-(--warn) animate-wiggle" : ""}`}
+                >
+                  <span className={`text-2xl ${isNew ? "animate-bounce-soft" : ""}`}>
+                    {def.icon}
+                  </span>
+                  <span className="text-[10px] font-bold text-main leading-tight">
+                    {def.name}
+                  </span>
+                  <span className="text-[8px] text-sub leading-tight">
+                    {def.desc}
+                  </span>
+                </div>
               </div>
             );
           })}

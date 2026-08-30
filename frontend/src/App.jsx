@@ -9,6 +9,7 @@ import AITutor from "./components/AITutor";
 import Achievements from "./components/Achievements";
 import Celebration from "./components/Celebration";
 import RewardOverlay from "./components/RewardOverlay";
+import ParticleCanvas from "./components/ParticleCanvas";
 import ProfileGate from "./components/ProfileGate";
 import { getEncouragement, judgeChallenge } from "./lib/api";
 import {
@@ -322,6 +323,7 @@ export default function App() {
 
   return (
     <div key={activeProfile.id} className="h-screen flex flex-col">
+      {dark && <ParticleCanvas />}
       <Header
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
