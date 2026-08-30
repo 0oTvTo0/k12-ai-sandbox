@@ -144,6 +144,7 @@ export default function App() {
   const [errorLine, setErrorLine] = useState(null);
   const codeRef = useRef(code);
   codeRef.current = code;
+  const editorRef = useRef(null);
 
   useEffect(() => { saveDraft(code); }, [code]);
 
@@ -216,26 +217,38 @@ export default function App() {
             onStop={handleStop}
             onSave={() => addHistory(codeRef.current, "saved")}
             onAskAI={handleAskAI}
+            onInsertSnippet={(t) => editorRef.current?.insertSnippet(t)}
             running={running}
             fontSize={fontSize}
             onFontChange={(d) => setFontSize((s) => Math.max(10, Math.min(26, s + d)))}
             canStop={running}
             stdin={stdinData}
             onStdinChange={setStdinData}
+            challengeLabel={null}
           />
 
           <div className="flex-1 flex flex-col min-h-0">
             <div className="flex-[3] min-h-0">
               <CodeEditor
+                ref={editorRef}
                 code={code}
                 onChange={setCode}
                 dark={dark}
                 fontSize={fontSize}
                 errorLine={errorLine}
+                onRun={() => handleRun("run")}
+                onTrace={() => handleRun("trace")}
+                statusText={running ? "运行中…" : "就绪"}
               />
             </div>
             <div className="flex-[2] min-h-0 border-t border-(--hairline)">
-              <ConsolePanel result={result} running={running} />
+              <ConsolePanel
+                result={result}
+                running={running}
+                code={code}
+                onLocateError={(line) => setErrorLine(line)}
+                onAskAI={handleAskAI}
+              />
             </div>
           </div>
         </div>

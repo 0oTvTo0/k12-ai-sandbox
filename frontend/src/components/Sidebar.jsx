@@ -1,16 +1,14 @@
-// 左侧可收起面板：示例模板 / 每日挑战 / 运行历史（示例栏将在 P1 移除）
+// 左侧可收起面板：每日挑战 / 运行历史（示例栏已按 FR-09 移除，内容并入挑战题库）
 import { useState, useEffect } from "react";
-import { getExamples, getChallenges } from "../lib/api";
+import { getChallenges } from "../lib/api";
 import { getHistory } from "../lib/storage";
 
-export default function Sidebar({ onLoadCode, collapsed, onToggle }) {
-  const [tab, setTab] = useState("examples"); // examples | challenges | history
-  const [examples, setExamples] = useState([]);
+export default function Sidebar({ onLoadCode, collapsed, onToggle, challengeMode }) {
+  const [tab, setTab] = useState("challenges"); // challenges | history
   const [challenges, setChallenges] = useState([]);
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    getExamples().then(setExamples).catch(() => {});
     getChallenges().then(setChallenges).catch(() => {});
     setHistory(getHistory());
   }, []);
@@ -30,7 +28,6 @@ export default function Sidebar({ onLoadCode, collapsed, onToggle }) {
   }
 
   const tabs = [
-    { key: "examples", icon: "📚", label: "示例" },
     { key: "challenges", icon: "🎯", label: "挑战" },
     { key: "history", icon: "📜", label: "历史" },
   ];
@@ -64,43 +61,32 @@ export default function Sidebar({ onLoadCode, collapsed, onToggle }) {
 
       {/* 内容列表 */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-        {tab === "examples" &&
-          examples.map((ex) => (
-            <button
-              key={ex.id}
-              onClick={() => onLoadCode(ex.code)}
-              className="w-full text-left p-2.5 rounded-2xl hover-tint group"
-            >
-              <div className="text-sm font-bold text-main group-hover:text-accent">
-                {ex.title}
-              </div>
-              <div className="text-[11px] text-sub mt-0.5">
-                {ex.description}
-              </div>
-              <span className="chip mt-1">{ex.category}</span>
-            </button>
-          ))}
-
         {tab === "challenges" &&
-          challenges.map((ch) => (
-            <button
-              key={ch.id}
-              onClick={() => onLoadCode(ch.starter_code)}
-              className="w-full text-left p-2.5 rounded-2xl hover-tint group"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-main group-hover:text-(--warn)">
-                  {ch.title}
-                </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                      style={{ background: "color-mix(in srgb, var(--warn) 15%, transparent)", color: "var(--warn)" }}>
-                  {ch.difficulty}
-                </span>
-              </div>
-              <div className="text-[11px] text-sub mt-0.5">
-                {ch.description}
-              </div>
-            </button>
+          (challenges.length === 0 ? (
+            <p className="text-xs text-faint text-center mt-8">
+              正在加载挑战…
+            </p>
+          ) : (
+            challenges.map((ch) => (
+              <button
+                key={ch.id}
+                onClick={() => onLoadCode(ch.starter_code)}
+                className="w-full text-left p-2.5 rounded-2xl hover-tint group"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-main group-hover:text-(--warn)">
+                    {ch.title}
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: "color-mix(in srgb, var(--warn) 15%, transparent)", color: "var(--warn)" }}>
+                    {ch.difficulty}
+                  </span>
+                </div>
+                <div className="text-[11px] text-sub mt-0.5">
+                  {ch.description}
+                </div>
+              </button>
+            ))
           ))}
 
         {tab === "history" &&

@@ -1,17 +1,20 @@
-// 编辑器工具栏：运行/追踪/停止/求助/保存/stdin/字号
+// 编辑器工具栏：运行/追踪/停止/求助/保存/片段/stdin/字号
 import { useState } from "react";
+import { SNIPPETS } from "./CodeEditor";
 
 export default function Toolbar({
-  onRun, onTrace, onStop, onSave, onAskAI,
+  onRun, onTrace, onStop, onSave, onAskAI, onInsertSnippet,
   running, fontSize, onFontChange,
   canStop, stdin, onStdinChange,
+  challengeLabel,
 }) {
   const [showStdin, setShowStdin] = useState(false);
+  const [showSnippets, setShowSnippets] = useState(false);
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-(--hairline)">
       {/* 运行按钮 */}
-      <button onClick={onRun} disabled={running} className="btn btn-primary">
+      <button onClick={onRun} disabled={running} className="btn btn-primary" title="Ctrl+Enter">
         <span>▶</span> 运行
       </button>
 
@@ -22,6 +25,7 @@ export default function Toolbar({
         className="btn bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white
                    disabled:opacity-45 disabled:cursor-not-allowed
                    shadow shadow-violet-200 dark:shadow-none"
+        title="Ctrl+Shift+Enter"
       >
         <span>🔍</span> 追踪
       </button>
@@ -42,12 +46,38 @@ export default function Toolbar({
       {/* AI 求助 */}
       <button
         onClick={onAskAI}
-        className="btn bg-gradient-to-r from-(--accent) to-(--accent-2) text-white
-                   animate-pop-in"
-        style={{ color: "var(--btn-primary-text)" }}
+        className="btn animate-pop-in"
+        style={{ background: "var(--btn-primary-bg)", color: "var(--btn-primary-text)" }}
       >
         <span>🤖</span> 求助老师
       </button>
+
+      {/* 代码片段菜单 */}
+      <div className="relative">
+        <button
+          onClick={() => setShowSnippets((s) => !s)}
+          className="btn btn-ghost"
+          title="插入常用代码片段"
+        >
+          🧩 片段
+        </button>
+        {showSnippets && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setShowSnippets(false)} />
+            <div className="absolute top-full mt-1 left-0 w-56 glass-strong p-1.5 z-40 animate-pop-in space-y-0.5">
+              {SNIPPETS.map((s) => (
+                <button
+                  key={s.label}
+                  onClick={() => { onInsertSnippet?.(s.code); setShowSnippets(false); }}
+                  className="w-full text-left px-3 py-2 rounded-xl text-sm text-main hover-tint"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* 保存 */}
       <button onClick={onSave} className="btn btn-ghost">
@@ -75,6 +105,13 @@ export default function Toolbar({
           </div>
         )}
       </div>
+
+      {/* 挑战模式标识 */}
+      {challengeLabel && (
+        <span className="chip animate-pop-in" title="当前挑战">
+          ⚔️ {challengeLabel}
+        </span>
+      )}
 
       <div className="flex-1" />
 
